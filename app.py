@@ -77,7 +77,7 @@ with col4:
             "Riesgo por operación (%)",
             min_value=0.01,
             max_value=99.99,
-            value=5.0,
+            value=3.0,
             step=0.1,
             format="%.2f",
         )
