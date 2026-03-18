@@ -1,6 +1,6 @@
 import math
-import streamlit as st
 import pandas as pd
+import streamlit as st
 
 st.set_page_config(
     page_title="Calculadora de Ruina",
@@ -14,10 +14,6 @@ st.write(
 )
 
 st.markdown("---")
-
-# =========================
-# Inputs
-# =========================
 st.subheader("Datos de entrada")
 
 capital_real = st.number_input(
@@ -29,41 +25,40 @@ capital_real = st.number_input(
     help="Ejemplo: si la cuenta dice 150k, pero realmente solo puedes perder 4,500, aquí va 4,500.",
 )
 
-col1, col2 = st.columns(2)
+modo_riesgo = st.selectbox(
+    "Modo de cálculo",
+    ["Modo porcentual", "Modo fijo"],
+)
 
-with col1:
+if modo_riesgo == "Modo porcentual":
     riesgo_pct = st.number_input(
-        "Riesgo porcentual por operación (%)",
+        "Riesgo por operación (%)",
         min_value=0.01,
-        max_value=100.0,
+        max_value=99.99,
         value=5.0,
         step=0.1,
         format="%.2f",
     )
-
-with col2:
+else:
     riesgo_fijo = st.number_input(
-        "Riesgo fijo por operación ($)",
+        "Riesgo por operación ($)",
         min_value=1.0,
         value=300.0,
         step=10.0,
         format="%.2f",
     )
 
-max_filas = st.slider(
-    "Máximo de filas a mostrar en las tablas",
-    min_value=5,
-    max_value=100,
-    value=20,
-    step=5,
-)
-
 st.markdown("---")
 
 
-# =========================
-# Helper functions
-# =========================
+def mensaje_supervivencia(perdidas: int) -> str:
+    if perdidas <= 5:
+        return "💀 Vas muy apretado. Un mal día y se apaga la película."
+    elif perdidas <= 15:
+        return "⚠️ Hay margen, pero no para andar regalando entradas."
+    return "🛡️ Tienes aire, pero tampoco te vengas arriba."
+
+
 def calcular_modo_porcentaje(capital: float, riesgo_porcentaje: float):
     riesgo_decimal = riesgo_porcentaje / 100
 
@@ -76,7 +71,7 @@ def calcular_modo_porcentaje(capital: float, riesgo_porcentaje: float):
     historial = []
     contador = 0
 
-    # Definimos ruina práctica cuando queda menos de 1 centavo
+    # Ruina práctica: cuando queda menos de 0.01
     while balance_actual > 0.01 and contador < 10000:
         perdida = balance_actual * riesgo_decimal
         balance_actual -= perdida
@@ -92,10 +87,15 @@ def calcular_modo_porcentaje(capital: float, riesgo_porcentaje: float):
         )
 
     df = pd.DataFrame(historial)
+
     return {
         "perdidas": contador,
         "capital_final": round(balance_actual, 2),
         "df": df,
+        "descripcion": (
+            f"Si arriesgas **{riesgo_porcentaje:.2f}%** por operación sobre el capital restante, "
+            f"podrías soportar aproximadamente **{contador} pérdidas consecutivas**."
+        ),
     }, None
 
 
@@ -123,118 +123,46 @@ def calcular_modo_fijo(capital: float, riesgo_dolares: float):
         )
 
     df = pd.DataFrame(historial)
+
     return {
         "perdidas": perdidas_posibles,
         "capital_final": round(sobrante, 2),
         "df": df,
+        "descripcion": (
+            f"Si pierdes **${riesgo_dolares:,.2f}** por operación, "
+            f"podrías soportar **{perdidas_posibles} pérdidas consecutivas**."
+        ),
     }, None
 
 
-def mensaje_supervivencia(perdidas: int):
-    if perdidas <= 5:
-        return "💀 Vas muy apretado. Un mal día y se apaga la película."
-    elif perdidas <= 15:
-        return "⚠️ Hay margen, pero no para andar regalando entradas."
-    else:
-        return "🛡️ Tienes aire, pero tampoco te vengas arriba."
+st.subheader("Resultado")
 
+if modo_riesgo == "Modo porcentual":
+    resultado, error = calcular_modo_porcentaje(capital_real, riesgo_pct)
+else:
+    resultado, error = calcular_modo_fijo(capital_real, riesgo_fijo)
 
-# =========================
-# Calculations
-# =========================
-resultado_pct, error_pct = calcular_modo_porcentaje(capital_real, riesgo_pct)
-resultado_fijo, error_fijo = calcular_modo_fijo(capital_real, riesgo_fijo)
+if error:
+    st.error(error)
+else:
+    col1, col2 = st.columns(2)
 
-st.subheader("Resultados")
+    with col1:
+        st.metric("Pérdidas consecutivas posibles", resultado["perdidas"])
 
-col_pct, col_fijo = st.columns(2)
+    with col2:
+        if modo_riesgo == "Modo porcentual":
+            st.metric("Capital final", f"${resultado['capital_final']:,.2f}")
+        else:
+            st.metric("Capital sobrante", f"${resultado['capital_final']:,.2f}")
 
-with col_pct:
-    st.markdown("### 📊 Modo porcentual")
-    if error_pct:
-        st.error(error_pct)
-    else:
-        st.metric(
-            "Pérdidas consecutivas posibles",
-            resultado_pct["perdidas"],
-        )
-        st.metric(
-            "Capital final",
-            f"${resultado_pct['capital_final']:,.2f}",
-        )
-        st.info(mensaje_supervivencia(resultado_pct["perdidas"]))
-        st.write(
-            f"Si arriesgas **{riesgo_pct:.2f}%** por operación sobre el capital restante, "
-            f"podrías soportar aproximadamente **{resultado_pct['perdidas']} pérdidas consecutivas**."
-        )
+    st.info(mensaje_supervivencia(resultado["perdidas"]))
+    st.write(resultado["descripcion"])
 
-with col_fijo:
-    st.markdown("### 💵 Modo fijo")
-    if error_fijo:
-        st.error(error_fijo)
-    else:
-        st.metric(
-            "Pérdidas consecutivas posibles",
-            resultado_fijo["perdidas"],
-        )
-        st.metric(
-            "Capital sobrante",
-            f"${resultado_fijo['capital_final']:,.2f}",
-        )
-        st.info(mensaje_supervivencia(resultado_fijo["perdidas"]))
-        st.write(
-            f"Si pierdes **${riesgo_fijo:,.2f}** por operación, "
-            f"podrías soportar **{resultado_fijo['perdidas']} pérdidas consecutivas**."
-        )
-
-st.markdown("---")
-
-# =========================
-# Comparison
-# =========================
-st.subheader("Comparación rápida")
-
-comparacion_data = {
-    "Modo": ["Porcentaje (%)", "Fijo ($)"],
-    "Riesgo usado": [f"{riesgo_pct:.2f}%", f"${riesgo_fijo:,.2f}"],
-    "Pérdidas posibles": [
-        resultado_pct["perdidas"] if resultado_pct else "N/A",
-        resultado_fijo["perdidas"] if resultado_fijo else "N/A",
-    ],
-    "Capital final": [
-        f"${resultado_pct['capital_final']:,.2f}" if resultado_pct else "N/A",
-        f"${resultado_fijo['capital_final']:,.2f}" if resultado_fijo else "N/A",
-    ],
-}
-
-df_comparacion = pd.DataFrame(comparacion_data)
-st.dataframe(df_comparacion, use_container_width=True, hide_index=True)
-
-st.markdown("---")
-
-# =========================
-# Tables
-# =========================
-st.subheader("Simulación detallada")
-
-tab1, tab2 = st.tabs(["📊 Riesgo porcentual", "💵 Riesgo fijo"])
-
-with tab1:
-    if resultado_pct:
-        st.dataframe(
-            resultado_pct["df"].head(max_filas),
-            use_container_width=True,
-            hide_index=True,
-        )
-    else:
-        st.warning("No se pudo generar la simulación porcentual.")
-
-with tab2:
-    if resultado_fijo:
-        st.dataframe(
-            resultado_fijo["df"].head(max_filas),
-            use_container_width=True,
-            hide_index=True,
-        )
-    else:
-        st.warning("No se pudo generar la simulación de monto fijo.")
+    st.markdown("---")
+    st.subheader("Simulación detallada")
+    st.dataframe(
+        resultado["df"],
+        use_container_width=True,
+        hide_index=True,
+    )
