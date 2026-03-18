@@ -10,95 +10,44 @@ st.set_page_config(
 
 st.title("🛡️ Calculadora de Supervivencia del Trader")
 st.write(
-    "Descubre cuántas pérdidas consecutivas puede soportar tu capital real "
-    "antes de llegar a tu límite mínimo."
+    "Controla tu riesgo y, además, revisa si tu combinación de Win Rate y "
+    "Reward/Risk tiene potencial real de ser rentable."
 )
 
 st.markdown(
     """
     <style>
     .block-container {
-        padding-top: 2rem;
+        padding-top: 1.8rem;
         padding-bottom: 2rem;
-        max-width: 900px;
+        max-width: 980px;
     }
     div[data-testid="stMetric"] {
-        border: 1px solid rgba(128,128,128,0.20);
-        border-radius: 12px;
+        border: 1px solid rgba(128,128,128,0.18);
+        border-radius: 14px;
         padding: 12px;
         background-color: rgba(255,255,255,0.02);
+    }
+    .section-card {
+        padding: 1rem 1rem 0.6rem 1rem;
+        border: 1px solid rgba(128,128,128,0.16);
+        border-radius: 16px;
+        background: rgba(255,255,255,0.015);
+        margin-bottom: 1rem;
+    }
+    .rr-title {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.markdown("### Configura tu escenario")
-
-col1, col2, col3 = st.columns([1.2, 1, 1])
-
-with col1:
-    capital_real = st.number_input(
-        "Capital real ($)",
-        min_value=1.0,
-        value=4500.0,
-        step=100.0,
-        format="%.2f",
-        help="Tu colchón real de pérdida. Ejemplo: 4500.",
-    )
-
-with col2:
-    capital_minimo = st.number_input(
-        "Capital mínimo ($)",
-        min_value=0.0,
-        value=10.0,
-        step=1.0,
-        format="%.2f",
-        help="Cuando el capital llegue a este nivel o menos, la simulación se detiene.",
-    )
-
-with col3:
-    tipo_riesgo = st.selectbox(
-        "Tipo de riesgo",
-        ["Riesgo porcentual (%)", "Riesgo fijo ($)"],
-    )
-
-if capital_minimo >= capital_real:
-    st.warning("El capital mínimo debe ser menor que el capital real para que la simulación tenga sentido.")
-
-col4, col5 = st.columns([1, 1])
-
-riesgo_pct = None
-riesgo_fijo = None
-
-with col4:
-    if tipo_riesgo == "Riesgo porcentual (%)":
-        riesgo_pct = st.number_input(
-            "Riesgo por operación (%)",
-            min_value=0.01,
-            max_value=99.99,
-            value=3.0,
-            step=0.1,
-            format="%.2f",
-        )
-    else:
-        st.text_input("Riesgo por operación (%)", value="No aplica", disabled=True)
-
-with col5:
-    if tipo_riesgo == "Riesgo fijo ($)":
-        riesgo_fijo = st.number_input(
-            "Riesgo por operación ($)",
-            min_value=0.01,
-            value=300.0,
-            step=10.0,
-            format="%.2f",
-        )
-    else:
-        st.text_input("Riesgo por operación ($)", value="No aplica", disabled=True)
-
-st.markdown("---")
-
-
+# =========================================================
+# Funciones
+# =========================================================
 def mensaje_supervivencia(perdidas: int) -> str:
     if perdidas <= 5:
         return "⚠️ Tu margen es ajustado. Conviene operar con mucha precisión."
@@ -189,7 +138,109 @@ def calcular_modo_fijo(capital: float, riesgo_dolares: float, capital_min: float
     }, None
 
 
-st.subheader("Resumen")
+def clasificar_rr_winrate(winrate_pct: float, rr: float, tolerancia: float = 1e-9):
+    """
+    Expectancy = WinRate * RR - LossRate * 1
+    Si > 0 rentable, si = 0 break-even, si < 0 no rentable
+    """
+    w = winrate_pct / 100
+    expectancy = (w * rr) - ((1 - w) * 1)
+
+    if abs(expectancy) <= tolerancia:
+        return "Break-even"
+    elif expectancy > 0:
+        return "Rentable"
+    return "No rentable"
+
+
+def color_rr(valor: str):
+    if valor == "Rentable":
+        return "background-color: rgba(46, 204, 113, 0.80); color: black; font-weight: 600;"
+    if valor == "Break-even":
+        return "background-color: rgba(241, 196, 15, 0.85); color: black; font-weight: 600;"
+    return "background-color: rgba(231, 76, 60, 0.82); color: white; font-weight: 600;"
+
+
+def crear_tabla_rr(winrates, rrs):
+    data = {}
+    for wr in winrates:
+        data[f"{wr}%"] = [clasificar_rr_winrate(wr, rr) for rr in rrs]
+
+    df = pd.DataFrame(data, index=[f"{rr}:1" for rr in rrs])
+    df.index.name = "RR"
+    return df
+
+
+# =========================================================
+# Escenario de riesgo
+# =========================================================
+st.markdown('<div class="section-card">', unsafe_allow_html=True)
+st.markdown("### Configura tu escenario")
+
+c1, c2, c3 = st.columns([1.2, 1, 1])
+
+with c1:
+    capital_real = st.number_input(
+        "Capital real ($)",
+        min_value=1.0,
+        value=4500.0,
+        step=100.0,
+        format="%.2f",
+        help="Tu colchón real de pérdida. Ejemplo: 4500.",
+    )
+
+with c2:
+    capital_minimo = st.number_input(
+        "Capital mínimo ($)",
+        min_value=0.0,
+        value=10.0,
+        step=1.0,
+        format="%.2f",
+        help="Cuando el capital llegue a este nivel o menos, la simulación se detiene.",
+    )
+
+with c3:
+    tipo_riesgo = st.selectbox(
+        "Tipo de riesgo",
+        ["Riesgo porcentual (%)", "Riesgo fijo ($)"],
+    )
+
+c4, c5 = st.columns(2)
+
+riesgo_pct = None
+riesgo_fijo = None
+
+with c4:
+    if tipo_riesgo == "Riesgo porcentual (%)":
+        riesgo_pct = st.number_input(
+            "Riesgo por operación (%)",
+            min_value=0.01,
+            max_value=99.99,
+            value=3.0,
+            step=0.1,
+            format="%.2f",
+        )
+    else:
+        st.text_input("Riesgo por operación (%)", value="No aplica", disabled=True)
+
+with c5:
+    if tipo_riesgo == "Riesgo fijo ($)":
+        riesgo_fijo = st.number_input(
+            "Riesgo por operación ($)",
+            min_value=0.01,
+            value=300.0,
+            step=10.0,
+            format="%.2f",
+        )
+    else:
+        st.text_input("Riesgo por operación ($)", value="No aplica", disabled=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+# =========================================================
+# Resultado riesgo
+# =========================================================
+st.subheader("Resumen del riesgo")
 
 if tipo_riesgo == "Riesgo porcentual (%)":
     resultado, error = calcular_modo_porcentaje(capital_real, riesgo_pct, capital_minimo)
@@ -213,10 +264,58 @@ else:
     st.info(mensaje_supervivencia(resultado["perdidas"]))
     st.write(resultado["descripcion"])
 
-    st.markdown("---")
     st.subheader("Detalle de la simulación")
     st.dataframe(
         resultado["df"],
         use_container_width=True,
         hide_index=True,
     )
+
+st.markdown("---")
+
+# =========================================================
+# Tabla RR / Win Rate
+# =========================================================
+st.markdown('<div class="section-card">', unsafe_allow_html=True)
+st.markdown("### Tabla RR vs Win Rate")
+st.write(
+    "Esta tabla te ayuda a validar si una combinación de **Reward/Risk** y "
+    "**porcentaje de acierto** tiene expectativa positiva."
+)
+
+rr_col1, rr_col2 = st.columns(2)
+
+with rr_col1:
+    max_rr = st.slider(
+        "RR máximo a mostrar",
+        min_value=2,
+        max_value=10,
+        value=5,
+        step=1,
+    )
+
+with rr_col2:
+    winrate_inicio = st.selectbox(
+        "Win Rate inicial",
+        options=[10, 20, 30, 40, 50, 60, 70, 80],
+        index=1,
+    )
+
+winrates = list(range(winrate_inicio, 81, 10))
+rrs = list(range(1, max_rr + 1))
+
+df_rr = crear_tabla_rr(winrates, rrs)
+
+styled_rr = df_rr.style.map(color_rr)
+
+st.dataframe(
+    styled_rr,
+    use_container_width=True,
+)
+
+st.caption(
+    "Rentable = expectativa positiva | Break-even = ni gana ni pierde en promedio | "
+    "No rentable = expectativa negativa"
+)
+
+st.markdown("</div>", unsafe_allow_html=True)
