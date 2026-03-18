@@ -3,21 +3,22 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Calculadora de Ruina",
-    page_icon="💀",
+    page_title="Calculadora de Supervivencia del Trader",
+    page_icon="🛡️",
     layout="centered",
 )
 
-st.title("💀 Calculadora de Ruina del Trader")
+st.title("🛡️ Calculadora de Supervivencia del Trader")
 st.write(
-    "Descubre cuántas pérdidas consecutivas puedes soportar antes de mandar la cuenta al más allá."
+    "Descubre cuántas pérdidas consecutivas puede soportar tu capital real "
+    "antes de quedarse sin margen."
 )
 
 st.markdown("---")
-st.subheader("Datos de entrada")
+st.subheader("Configura tu escenario")
 
 capital_real = st.number_input(
-    "Capital real disponible para perder ($)",
+    "Capital real que puedes arriesgar ($)",
     min_value=1.0,
     value=4500.0,
     step=100.0,
@@ -25,12 +26,12 @@ capital_real = st.number_input(
     help="Ejemplo: si la cuenta dice 150k, pero realmente solo puedes perder 4,500, aquí va 4,500.",
 )
 
-modo_riesgo = st.selectbox(
-    "Modo de cálculo",
-    ["Modo porcentual", "Modo fijo"],
+tipo_riesgo = st.selectbox(
+    "Tipo de riesgo",
+    ["Riesgo porcentual (%)", "Riesgo fijo ($)"],
 )
 
-if modo_riesgo == "Modo porcentual":
+if tipo_riesgo == "Riesgo porcentual (%)":
     riesgo_pct = st.number_input(
         "Riesgo por operación (%)",
         min_value=0.01,
@@ -53,10 +54,10 @@ st.markdown("---")
 
 def mensaje_supervivencia(perdidas: int) -> str:
     if perdidas <= 5:
-        return "💀 Vas muy apretado. Un mal día y se apaga la película."
+        return "⚠️ Tu margen es bastante ajustado. Conviene operar con mucha precisión."
     elif perdidas <= 15:
-        return "⚠️ Hay margen, pero no para andar regalando entradas."
-    return "🛡️ Tienes aire, pero tampoco te vengas arriba."
+        return "👍 Tienes un margen razonable, pero sigue siendo importante cuidar cada entrada."
+    return "🛡️ Tu capital tiene buen margen de resistencia. Aun así, la disciplina sigue mandando."
 
 
 def calcular_modo_porcentaje(capital: float, riesgo_porcentaje: float):
@@ -71,8 +72,8 @@ def calcular_modo_porcentaje(capital: float, riesgo_porcentaje: float):
     historial = []
     contador = 0
 
-    # Ruina práctica: cuando queda menos de 0.01
-    while balance_actual > 0.01 and contador < 10000:
+    # Parar cuando el capital llegue a $1 o menos
+    while balance_actual > 1 and contador < 10000:
         perdida = balance_actual * riesgo_decimal
         balance_actual -= perdida
         contador += 1
@@ -94,7 +95,8 @@ def calcular_modo_porcentaje(capital: float, riesgo_porcentaje: float):
         "df": df,
         "descripcion": (
             f"Si arriesgas **{riesgo_porcentaje:.2f}%** por operación sobre el capital restante, "
-            f"podrías soportar aproximadamente **{contador} pérdidas consecutivas**."
+            f"podrías soportar aproximadamente **{contador} pérdidas consecutivas** "
+            f"hasta quedar con **$1 o menos**."
         ),
     }, None
 
@@ -130,14 +132,15 @@ def calcular_modo_fijo(capital: float, riesgo_dolares: float):
         "df": df,
         "descripcion": (
             f"Si pierdes **${riesgo_dolares:,.2f}** por operación, "
-            f"podrías soportar **{perdidas_posibles} pérdidas consecutivas**."
+            f"podrías soportar **{perdidas_posibles} pérdidas consecutivas** "
+            f"antes de quedarte sin margen suficiente para otra pérdida completa."
         ),
     }, None
 
 
-st.subheader("Resultado")
+st.subheader("Resumen")
 
-if modo_riesgo == "Modo porcentual":
+if tipo_riesgo == "Riesgo porcentual (%)":
     resultado, error = calcular_modo_porcentaje(capital_real, riesgo_pct)
 else:
     resultado, error = calcular_modo_fijo(capital_real, riesgo_fijo)
@@ -151,16 +154,16 @@ else:
         st.metric("Pérdidas consecutivas posibles", resultado["perdidas"])
 
     with col2:
-        if modo_riesgo == "Modo porcentual":
+        if tipo_riesgo == "Riesgo porcentual (%)":
             st.metric("Capital final", f"${resultado['capital_final']:,.2f}")
         else:
-            st.metric("Capital sobrante", f"${resultado['capital_final']:,.2f}")
+            st.metric("Capital restante", f"${resultado['capital_final']:,.2f}")
 
     st.info(mensaje_supervivencia(resultado["perdidas"]))
     st.write(resultado["descripcion"])
 
     st.markdown("---")
-    st.subheader("Simulación detallada")
+    st.subheader("Detalle de la simulación")
     st.dataframe(
         resultado["df"],
         use_container_width=True,
