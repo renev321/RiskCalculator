@@ -8,19 +8,16 @@ st.set_page_config(
     layout="centered",
 )
 
-st.title("🛡️ Calculadora de Supervivencia del Trader")
-st.write(
-    "Controla tu riesgo y, además, revisa si tu combinación de Win Rate y "
-    "Reward/Risk tiene potencial real de ser rentable."
-)
-
+# =========================================================
+# Estilos
+# =========================================================
 st.markdown(
     """
     <style>
     .block-container {
-        padding-top: 1.8rem;
+        padding-top: 1.2rem;
         padding-bottom: 2rem;
-        max-width: 980px;
+        max-width: 1050px;
     }
     div[data-testid="stMetric"] {
         border: 1px solid rgba(128,128,128,0.18);
@@ -29,15 +26,23 @@ st.markdown(
         background-color: rgba(255,255,255,0.02);
     }
     .section-card {
-        padding: 1rem 1rem 0.6rem 1rem;
+        padding: 1rem 1rem 0.8rem 1rem;
         border: 1px solid rgba(128,128,128,0.16);
         border-radius: 16px;
         background: rgba(255,255,255,0.015);
         margin-bottom: 1rem;
     }
-    .rr-title {
-        font-size: 1.05rem;
-        font-weight: 600;
+    .info-box {
+        padding: 16px 18px;
+        border-radius: 16px;
+        border: 1px solid rgba(128,128,128,0.18);
+        background: rgba(255,255,255,0.02);
+        line-height: 1.6;
+        font-size: 0.98rem;
+    }
+    .logo-wrap {
+        display: flex;
+        justify-content: center;
         margin-bottom: 0.5rem;
     }
     </style>
@@ -46,14 +51,25 @@ st.markdown(
 )
 
 # =========================================================
+# Logo
+# =========================================================
+st.image("LogoWLf.png", width=260)
+
+st.title("🛡️ Calculadora de Supervivencia del Trader")
+st.write(
+    "Controla tu riesgo y revisa si tu combinación de Win Rate y Reward/Risk "
+    "tiene verdadero potencial de ser rentable."
+)
+
+# =========================================================
 # Funciones
 # =========================================================
 def mensaje_supervivencia(perdidas: int) -> str:
     if perdidas <= 5:
-        return "⚠️ Tu margen es ajustado. Conviene operar con mucha precisión."
+        return "⚠️ Tu margen es ajustado. Aquí no toca improvisar ni ponerse creativo de más."
     elif perdidas <= 15:
-        return "👍 Tienes un margen razonable, pero sigue siendo clave cuidar cada entrada."
-    return "🛡️ Tu capital tiene buena resistencia. Aun así, la disciplina sigue mandando."
+        return "👍 Tienes un margen razonable. Hay aire, pero igual conviene respetar el plan."
+    return "🛡️ Tu capital tiene buena resistencia. Muy bien... pero no es licencia para volverse loco."
 
 
 def calcular_modo_porcentaje(capital: float, riesgo_porcentaje: float, capital_min: float):
@@ -139,12 +155,7 @@ def calcular_modo_fijo(capital: float, riesgo_dolares: float, capital_min: float
 
 
 def clasificar_rr_winrate(winrate_pct: float, rr: float, tolerancia: float = 1e-9):
-    """
-    Expectancy = WinRate * RR - LossRate * 1
-    Si > 0 rentable, si = 0 break-even, si < 0 no rentable
-    """
-    w = winrate_pct / 100
-    expectancy = (w * rr) - ((1 - w) * 1)
+    expectancy = (winrate_pct / 100 * rr) - ((1 - winrate_pct / 100) * 1)
 
     if abs(expectancy) <= tolerancia:
         return "Break-even"
@@ -157,8 +168,8 @@ def color_rr(valor: str):
     if valor == "Rentable":
         return "background-color: rgba(46, 204, 113, 0.80); color: black; font-weight: 600;"
     if valor == "Break-even":
-        return "background-color: rgba(241, 196, 15, 0.85); color: black; font-weight: 600;"
-    return "background-color: rgba(231, 76, 60, 0.82); color: white; font-weight: 600;"
+        return "background-color: rgba(241, 196, 15, 0.88); color: black; font-weight: 600;"
+    return "background-color: rgba(231, 76, 60, 0.84); color: white; font-weight: 600;"
 
 
 def crear_tabla_rr(winrates, rrs):
@@ -289,8 +300,8 @@ with rr_col1:
     max_rr = st.slider(
         "RR máximo a mostrar",
         min_value=2,
-        max_value=10,
-        value=5,
+        max_value=20,
+        value=10,
         step=1,
     )
 
@@ -298,14 +309,13 @@ with rr_col2:
     winrate_inicio = st.selectbox(
         "Win Rate inicial",
         options=[10, 20, 30, 40, 50, 60, 70, 80],
-        index=1,
+        index=0,
     )
 
 winrates = list(range(winrate_inicio, 81, 10))
 rrs = list(range(1, max_rr + 1))
 
 df_rr = crear_tabla_rr(winrates, rrs)
-
 styled_rr = df_rr.style.map(color_rr)
 
 st.dataframe(
@@ -313,9 +323,21 @@ st.dataframe(
     use_container_width=True,
 )
 
-st.caption(
-    "Rentable = expectativa positiva | Break-even = ni gana ni pierde en promedio | "
-    "No rentable = expectativa negativa"
+st.markdown("<br>", unsafe_allow_html=True)
+
+st.markdown(
+    """
+    <div class="info-box">
+        <b>💡 Cómo leer esta tabla</b><br><br>
+        <b>• Columnas:</b> representan tu porcentaje de acierto o <i>Win Rate</i>.<br>
+        <b>• Filas:</b> representan tu relación <i>Reward/Risk</i> (por ejemplo, 3:1 significa que ganas 3 por cada 1 que arriesgas).<br>
+        <b>• Verde:</b> tu combinación tiene expectativa positiva. Bien ahí, las matemáticas te acompañan.<br>
+        <b>• Amarillo:</b> estás en break-even. O sea, sobrevives... pero no para presumir mucho todavía.<br>
+        <b>• Rojo:</b> la combinación no es rentable a largo plazo. Mejor descubrirlo aquí que con la cuenta llorando.<br><br>
+        <b>Idea clave:</b> no siempre necesitas acertar muchísimo. A veces, con un buen RR, un win rate modesto ya puede funcionar bastante bien.
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 st.markdown("</div>", unsafe_allow_html=True)
